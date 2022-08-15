@@ -1,0 +1,195 @@
+---
+title: "Football scraping"
+author: "Bernard"
+date: "8/15/2022"
+output: html_document
+---
+# Web scraping ESPN  website for Football data 
+
+
+### Brief Introduction to Webscraping   
+The internet is filled with data that are not usually available in a downloadable form or lucky to have access an API where you can directly ask for the data with R. We turn to webscraping to obtain this data in a format that requires lots of cleaning, text analysis and processing before analysis begins.  
+Most webpages are built using html and css and to  scrape a website we need to be comfortable working with them. An important tool that makes this easy is the selector Gadget, this chrome extension allows selcting and copying the selector that would be used as an arguement in the  `html_nodes()` function. Click to download [SelectorGadget](https://selectorgadget.com/)
+
+
+### Website:  
+For this project, I want to scrape the ESPN website <https://www.espn.com/> for football/soccer data (I am aware this data is readily available in cleaner format). I want to collect data from 2010 to 2021 season of the English Premier league the data would include information of Top scorers, Top Assist providers and the league table at the end o that season.
+
+To begin with, it is good practice to know the limitations of our webscraping robot provided by the website, we do this by chhecking <https://www.espn.com/robots.txt>, we are concerned about the "*Disallow: /soccer...*" from the information provided, we are clear. 
+
+Both links below are important to the craping we would carry out in this project 
+<https://www.espn.com/soccer/standings/_/league/eng.1/season/> for the league table 
+<https://www.espn.com/soccer/stats/_/league/ENG.1/season/> tor the top goals and assists 
+
+
+The top 50 goals scorers and the top  50 assists providers would be collected and combinded into a data frame
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(rvest)  # for scraping 
+library(tidyverse) # for data manipulation/ cleaning
+```
+
+### Top 50 Goal scorers  
+
+```{r Goals,}
+goals <- list()    # create an empty list (0)
+
+for (year in 2010: 2021) {   # creates a for loop for crawling over different years 
+  message("Scraping goals stat for: ", year, "/", year+1, " season")  # a message to monitor scraping progress
+  
+  season = paste0("https://www.espn.com/soccer/stats/_/league/ENG.1/season/", year, "/view/scoring" ) %>% 
+    read_html()  
+  
+  stat= tibble(   # create a tibble, with columns..., each year would have a tibble
+    
+    Player_name= season%>% 
+      html_nodes(".top-score-table .Table__TD:nth-child(2)") %>% 
+      html_text(), 
+    
+    team= season  %>% 
+      html_nodes(".top-score-table .Table__TD~ .Table__TD+ .Table__TD .AnchorLink") %>% 
+      html_text(), 
+    
+    
+    games_played= season %>%  
+      html_nodes(".top-score-table .Table__TD:nth-child(4) .tar") %>% 
+      html_text(), 
+    
+    scored = season %>% 
+      html_nodes(".top-score-table .tar+ .Table__TD .tar") %>% 
+      html_text(),
+    
+    year = paste(year, year+1, sep = " / " )
+  )
+  goals[[length(goals)+1]] = stat 
+}
+
+goals_stat <- do.call(rbind, goals) #bind the rows together to form a data frame
+```
+
+### Top 50 Assists providers  
+
+```{r assists,}
+assist <- list()
+
+for (year in 2010: 2021) {
+  message("Scraping assist stat for: ", year, "/", year+1, " season")
+  season = paste0("https://www.espn.com/soccer/stats/_/league/ENG.1/season/", year, "/view/scoring" ) %>% 
+    read_html()
+  
+  stat= tibble(
+    
+    Player_name= season%>% 
+      html_nodes(".top-assists-table .Table__TD:nth-child(2)") %>% 
+      html_text(), 
+    
+    team= season  %>% 
+      html_nodes(".top-assists-table .Table__TD~ .Table__TD+ .Table__TD .AnchorLink") %>% 
+      html_text(), 
+    
+   
+    games_played= season %>%  
+      html_nodes(".top-assists-table .Table__TD:nth-child(4) .tar") %>% 
+      html_text(), 
+    
+    assist = season %>% 
+      html_nodes(".top-assists-table .tar+ .Table__TD .tar") %>% 
+      html_text(), 
+    
+    year = paste(year, year+1, sep = " / " )
+  )
+  assist[[length(assist)+1]] = stat
+}
+
+assist_stat <- do.call(rbind, assist)
+
+
+```
+
+
+```{r}
+playerstat <- full_join(goals_stat, assist_stat) #combine all rows of both data frames together
+
+write.csv(playerstat, "Playerstat.csv",  row.names = FALSE)  # save as a CSV file
+
+head(playerstat, 10)
+```
+
+
+```{r League table}
+ 
+  league <- list()
+  
+  for (year in 2010: 2021) {
+    message("Scraping League table at the end of : ", year, "/", year+1, " season")
+    
+    season = paste0("https://www.espn.com/soccer/standings/_/league/eng.1/season/", year) %>% 
+      read_html()
+    
+    table= data.frame(
+      
+      standing = c(1:20),
+      
+      Team= season%>% 
+        html_nodes(".hide-mobile .AnchorLink") %>% 
+        html_text(), 
+      
+      W= season  %>% 
+        html_nodes(".Table__TD:nth-child(2) .stat-cell") %>% 
+        html_text(), 
+      
+      D= season%>% 
+        html_nodes(".Table__TD:nth-child(3) .stat-cell") %>% 
+        html_text(),
+        
+      L = season%>% 
+        html_nodes(".Table__TD:nth-child(4) .stat-cell") %>% 
+        html_text(),
+        
+      For= season%>% 
+        html_nodes(".Table__TD:nth-child(5) .stat-cell") %>% 
+        html_text(),
+      
+      Against= season%>% 
+        html_nodes(".Table__TD:nth-child(6) .stat-cell") %>% 
+        html_text(),
+        
+      Points= season%>% 
+        html_nodes(".Table__TD:nth-child(8) .stat-cell") %>% 
+        html_text(),
+        
+      year = paste(year, year+1, sep = " / " ) 
+      
+      )
+  
+    
+    
+      
+    league[[length(league)+1]] = table
+  }
+
+league_table <- do.call(rbind, league)
+```
+
+
+```{r}
+
+league_table <- league_table %>% mutate (position=case_when(
+      standing==1 ~ "League Champion",
+      standing <= 4 ~ "Champions league", 
+      standing <= 6 ~ "Europa league ",
+      standing <= 10 ~ "Top half",
+      standing <= 17 ~ "Bottom half",
+      TRUE~"Relegation"
+    ))
+```
+
+
+```{r}
+write.csv(league_table, "League_table.csv", row.names = FALSE)
+```
+
